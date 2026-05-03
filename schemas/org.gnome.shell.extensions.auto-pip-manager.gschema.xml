@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.auto-pip-manager"
+          path="/org/gnome/shell/extensions/auto-pip-manager/">
+    <key name="corner" type="s">
+      <default>'bottom-right'</default>
+      <summary>Corner position</summary>
+      <description>Corner of the screen where the PiP window will be placed: top-left, top-right, bottom-right, bottom-left</description>
+    </key>
+    <key name="offset" type="i">
+      <default>20</default>
+      <range min="0" max="50"/>
+      <summary>Offset in pixels</summary>
+      <description>Distance from the chosen corner in pixels</description>
+    </key>
+  </schema>
+</schemalist>
