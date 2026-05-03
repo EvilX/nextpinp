@@ -1,6 +1,6 @@
 # Auto PiP Manager
 
-**GNOME Shell extension** — automatically manages Picture-in-Picture windows.
+**GNOME Shell extension** — automatically manages Picture-in-Picture windows and add MacOS like behaviour.
 
 [Русская версия](README.ru.md)
 
@@ -9,6 +9,7 @@
 - Automatically pins PiP windows **above all other windows**
 - Automatically makes PiP windows visible **on every workspace**
 - Moves PiP windows to a **chosen corner** of the screen on appearance
+- Snaps PiP windows to a nearest screen corner after a moving.
 - No Top Bar icon, no background processes beyond a single window-creation listener
 
 ## Requirements
