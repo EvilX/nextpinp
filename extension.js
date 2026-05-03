@@ -32,40 +32,68 @@ function applyPiPAttributes(window) {
     window.make_above();
 }
 
-function moveToPiPCorner(window, settings) {
-    const corner = settings.get_string('corner');
-    const offset = settings.get_int('offset');
+// Returns the corner key and target {x, y} for the given corner + offset.
+function cornerPosition(corner, offset, workArea, frameRect) {
+    switch (corner) {
+        case 'top-left':
+            return { x: workArea.x + offset, y: workArea.y + offset };
+        case 'top-right':
+            return {
+                x: workArea.x + workArea.width - frameRect.width - offset,
+                y: workArea.y + offset,
+            };
+        case 'bottom-left':
+            return {
+                x: workArea.x + offset,
+                y: workArea.y + workArea.height - frameRect.height - offset,
+            };
+        case 'bottom-right':
+        default:
+            return {
+                x: workArea.x + workArea.width - frameRect.width - offset,
+                y: workArea.y + workArea.height - frameRect.height - offset,
+            };
+    }
+}
 
+function moveToPiPCorner(window, settings) {
     const workArea = window.get_work_area_current_monitor();
     const frameRect = window.get_frame_rect();
 
-    // If the window size is not yet known, bail — caller should retry via first-frame.
     if (!frameRect.width || !frameRect.height)
         return false;
 
-    let x, y;
-    switch (corner) {
-        case 'top-left':
-            x = workArea.x + offset;
-            y = workArea.y + offset;
-            break;
-        case 'top-right':
-            x = workArea.x + workArea.width - frameRect.width - offset;
-            y = workArea.y + offset;
-            break;
-        case 'bottom-left':
-            x = workArea.x + offset;
-            y = workArea.y + workArea.height - frameRect.height - offset;
-            break;
-        case 'bottom-right':
-        default:
-            x = workArea.x + workArea.width - frameRect.width - offset;
-            y = workArea.y + workArea.height - frameRect.height - offset;
-            break;
-    }
-
+    const { x, y } = cornerPosition(
+        settings.get_string('corner'),
+        settings.get_int('offset'),
+        workArea, frameRect
+    );
     window.move_frame(true, x, y);
     return true;
+}
+
+// Snap to the nearest corner after a drag, then persist the new corner in settings.
+function snapToNearestCorner(window, settings) {
+    const workArea = window.get_work_area_current_monitor();
+    const frameRect = window.get_frame_rect();
+    const offset = settings.get_int('offset');
+
+    // Use window centre to decide which quadrant it's in.
+    const cx = frameRect.x + frameRect.width / 2;
+    const cy = frameRect.y + frameRect.height / 2;
+    const onLeft = cx < workArea.x + workArea.width / 2;
+    const onTop  = cy < workArea.y + workArea.height / 2;
+
+    const corner =
+        onLeft && onTop  ? 'top-left'    :
+        !onLeft && onTop ? 'top-right'   :
+        onLeft           ? 'bottom-left' : 'bottom-right';
+
+    const { x, y } = cornerPosition(corner, offset, workArea, frameRect);
+    window.move_frame(true, x, y);
+
+    // Persist so the next PiP window opens in the same corner.
+    settings.set_string('corner', corner);
 }
 
 export default class AutoPiPManager extends Extension {
@@ -82,7 +110,6 @@ export default class AutoPiPManager extends Extension {
 
                 applyPiPAttributes(window);
 
-                // Try to move immediately; if size is not ready yet, wait for first-frame.
                 if (!moveToPiPCorner(window, this._settings)) {
                     const actor = window.get_compositor_private();
                     if (actor) {
@@ -98,6 +125,17 @@ export default class AutoPiPManager extends Extension {
             this._pendingIdles.add(id);
         });
 
+        // Snap to nearest corner when a PiP window drag ends.
+        this._grabOpEndId = global.display.connect('grab-op-end', (_display, window, op) => {
+            if (!window)
+                return;
+            if (op !== Meta.GrabOp.MOVING && op !== Meta.GrabOp.KEYBOARD_MOVING)
+                return;
+            if (!isPiP(window))
+                return;
+            snapToNearestCorner(window, this._settings);
+        });
+
         for (const window of global.display.list_all_windows()) {
             if (isPiP(window)) {
                 applyPiPAttributes(window);
@@ -110,6 +148,11 @@ export default class AutoPiPManager extends Extension {
         if (this._windowCreatedId) {
             global.display.disconnect(this._windowCreatedId);
             this._windowCreatedId = null;
+        }
+
+        if (this._grabOpEndId) {
+            global.display.disconnect(this._grabOpEndId);
+            this._grabOpEndId = null;
         }
 
         for (const id of this._pendingIdles)
