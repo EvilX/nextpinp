@@ -2,6 +2,8 @@
 
 **GNOME Shell extension** — automatically manages Picture-in-Picture windows and add MacOS like behaviour.
 
+[Gnome Extenstions](https://extensions.gnome.org/extension/9827/auto-pip-manager/)
+
 [Русская версия](README.ru.md)
 
 ## Features
