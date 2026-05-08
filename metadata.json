@@ -2,7 +2,8 @@
   "name": "Auto PiP Manager",
   "description": "Automatically sets picture-in-picture windows to always-on-top and visible on all workspaces.",
   "uuid": "nextpinp@leonid.nasedkin",
-  "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "version": 3,
-  "settings-schema": "org.gnome.shell.extensions.auto-pip-manager"
+  "shell-version": ["49", "50"],
+  "version": 5,
+  "settings-schema": "org.gnome.shell.extensions.auto-pip-manager",
+  "url": "https://github.com/EvilX/nextpinp"
 }

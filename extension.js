@@ -10,18 +10,22 @@ const PIP_TITLES = [
 ];
 
 function isPiP(window) {
+    if (!window)
+        return false;
     if (window.get_window_type() !== Meta.WindowType.NORMAL)
         return false;
 
-    const title = window.get_title() ?? '';
-    if (PIP_TITLES.some(t => title.toLowerCase() === t))
+    const title = (window.get_title() ?? '').toLowerCase();
+    if (title && PIP_TITLES.some(t => title === t))
         return true;
 
     const wmClass = window.get_wm_class() ?? '';
     const wmClassInstance = window.get_wm_class_instance() ?? '';
-    if (/picture.?in.?picture/i.test(title) ||
-        /picture.?in.?picture/i.test(wmClass) ||
-        /picture.?in.?picture/i.test(wmClassInstance))
+    if (title && /picture.?in.?picture/i.test(title))
+        return true;
+    if (wmClass && /picture.?in.?picture/i.test(wmClass))
+        return true;
+    if (wmClassInstance && /picture.?in.?picture/i.test(wmClassInstance))
         return true;
 
     return false;
@@ -135,13 +139,6 @@ export default class AutoPiPManager extends Extension {
                 return;
             snapToNearestCorner(window, this._settings);
         });
-
-        for (const window of global.display.list_all_windows()) {
-            if (isPiP(window)) {
-                applyPiPAttributes(window);
-                moveToPiPCorner(window, this._settings);
-            }
-        }
     }
 
     disable() {
