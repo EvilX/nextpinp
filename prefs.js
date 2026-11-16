@@ -72,6 +72,25 @@ export default class AutoPiPPreferences extends ExtensionPreferences {
         });
         positionGroup.add(offsetRow);
 
+        // — Appearance group —
+        const appearanceGroup = new Adw.PreferencesGroup({ title: _('Appearance') });
+        page.add(appearanceGroup);
+
+        const radiusRow = new Adw.SpinRow({
+            title: _('Corner Radius'),
+            subtitle: _('Rounding of the PiP window corners in pixels, 0 to disable'),
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 32,
+                step_increment: 1,
+                value: settings.get_int('corner-radius'),
+            }),
+        });
+        radiusRow.connect('notify::value', () => {
+            settings.set_int('corner-radius', radiusRow.value);
+        });
+        appearanceGroup.add(radiusRow);
+
         window.add(page);
     }
 }

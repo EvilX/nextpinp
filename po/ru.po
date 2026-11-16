@@ -46,3 +46,12 @@ msgstr "Отступ"
 
 msgid "Distance from the screen corner in pixels"
 msgstr "Расстояние от угла экрана в пикселях"
+
+msgid "Appearance"
+msgstr "Внешний вид"
+
+msgid "Corner Radius"
+msgstr "Радиус скругления"
+
+msgid "Rounding of the PiP window corners in pixels, 0 to disable"
+msgstr "Скругление углов PiP-окна в пикселях, 0 — без скругления"

@@ -12,11 +12,12 @@
 - Automatically makes PiP windows visible **on every workspace**
 - Moves PiP windows to a **chosen corner** of the screen on appearance
 - Snaps PiP windows to a nearest screen corner after a moving.
+- Draws PiP windows with **rounded corners** (adjustable radius)
 - No Top Bar icon, no background processes beyond a single window-creation listener
 
 ## Requirements
 
-- GNOME Shell 45 or later
+- GNOME Shell 51
 
 ## Installation
 
@@ -42,6 +43,7 @@ gnome-extensions prefs nextpinp@leonid.nasedkin
 |---------|-------------|---------|
 | Corner | Screen corner where PiP windows are placed | Bottom Right |
 | Offset | Distance from the corner edge in pixels (0–50) | 20 |
+| Corner Radius | Rounding of the PiP window corners in pixels (0–32, 0 disables) | 12 |
 
 Available corners: Top Left, Top Right, Bottom Right, Bottom Left.
 
