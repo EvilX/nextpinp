@@ -1,19 +1,22 @@
 # Auto PiP Manager
 
-**GNOME Shell extension** — automatically manages Picture-in-Picture windows and add MacOS like behaviour.
+**GNOME Shell extension** that automatically manages Picture-in-Picture windows and adds macOS-like behaviour.
 
-[Gnome Extenstions](https://extensions.gnome.org/extension/9827/auto-pip-manager/)
+[GNOME Extensions](https://extensions.gnome.org/extension/9827/auto-pip-manager/) · [Русская версия](README.ru.md)
 
-[Русская версия](README.ru.md)
+![Auto PiP Manager screenshot](screenshot.png)
 
 ## Features
 
-- Automatically pins PiP windows **above all other windows**
-- Automatically makes PiP windows visible **on every workspace**
-- Moves PiP windows to a **chosen corner** of the screen on appearance
-- Snaps PiP windows to a nearest screen corner after a moving.
+- Keeps PiP windows **above all other windows**
+- Makes PiP windows visible **on every workspace**
+- Moves a new PiP window to the **chosen corner** of the screen
+- **Snaps** a PiP window to the nearest screen corner after you move or resize it; the new corner is remembered for the next PiP window
+- Keeps a PiP window in its corner when the app resizes it (e.g. a video with a different aspect ratio)
 - Draws PiP windows with **rounded corners** (adjustable radius)
-- No Top Bar icon, no background processes beyond a single window-creation listener
+- No Top Bar icon and no background processes: the extension only reacts to window events
+
+PiP windows are detected by window title or WM class (`Picture-in-Picture` and similar), so it works with Firefox and Chromium-based browsers.
 
 ## Requirements
 
@@ -21,15 +24,16 @@
 
 ## Installation
 
+Install from [extensions.gnome.org](https://extensions.gnome.org/extension/9827/auto-pip-manager/) or from source:
+
 ```bash
-git clone <repo-url>
-cd NextPinP
+git clone https://github.com/EvilX/nextpinp.git
+cd nextpinp
 ./install.sh
 gnome-extensions enable nextpinp@leonid.nasedkin
 ```
 
-On **Wayland** a session restart (log out / log in) is required after the first install.  
-On **X11** you can reload GNOME Shell in place: press `Alt+F2`, type `r`, press `Enter`.
+After installing or updating, log out and log back in so GNOME Shell loads the new code.
 
 ## Settings
 
@@ -41,27 +45,40 @@ gnome-extensions prefs nextpinp@leonid.nasedkin
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| Corner | Screen corner where PiP windows are placed | Bottom Right |
-| Offset | Distance from the corner edge in pixels (0–50) | 20 |
+| Always on Top | Keep PiP windows above all other windows | On |
+| Always Visible on All Workspaces | Show PiP windows on every workspace | On |
+| Corner | Screen corner where PiP windows are placed (also updated when you drag a PiP window to another corner) | Bottom Right |
+| Offset | Distance from the screen corner in pixels (0–50) | 20 |
 | Corner Radius | Rounding of the PiP window corners in pixels (0–32, 0 disables) | 20 |
 
 Available corners: Top Left, Top Right, Bottom Right, Bottom Left.
+
+## Building a release archive
+
+```bash
+gnome-extensions pack --force --podir=po \
+    --schema=schemas/org.gnome.shell.extensions.auto-pip-manager.gschema.xml \
+    --out-dir=. .
+```
+
+This produces `nextpinp@leonid.nasedkin.shell-extension.zip` ready for upload to extensions.gnome.org.
 
 ## Adding a new translation
 
 1. Copy `po/ru.po` to `po/<lang>.po` (e.g. `po/de.po`)
 2. Translate the `msgstr` values
-3. Run `./install.sh` — the new `.mo` file is compiled automatically
+3. Run `./install.sh`: the new `.mo` file is compiled automatically
 
 ## Project structure
 
 ```
-├── extension.js       Main extension logic
+├── extension.js       Main extension logic (placement, snapping, rounded corners)
 ├── prefs.js           Preferences UI (libadwaita)
 ├── metadata.json      Extension metadata
 ├── schemas/           GSettings schema
 ├── po/                Translation sources (.po)
-└── install.sh         Build & install script
+├── install.sh         Build & install script
+└── screenshot.png     Screenshot
 ```
 
 ## License
