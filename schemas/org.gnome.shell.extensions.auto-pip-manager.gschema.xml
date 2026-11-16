@@ -24,7 +24,7 @@
       <description>Show PiP windows on every workspace</description>
     </key>
     <key name="corner-radius" type="i">
-      <default>12</default>
+      <default>20</default>
       <range min="0" max="32"/>
       <summary>Corner radius</summary>
       <description>Radius of the PiP window's rounded corners in pixels, 0 disables rounding</description>

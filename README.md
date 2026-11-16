@@ -43,7 +43,7 @@ gnome-extensions prefs nextpinp@leonid.nasedkin
 |---------|-------------|---------|
 | Corner | Screen corner where PiP windows are placed | Bottom Right |
 | Offset | Distance from the corner edge in pixels (0–50) | 20 |
-| Corner Radius | Rounding of the PiP window corners in pixels (0–32, 0 disables) | 12 |
+| Corner Radius | Rounding of the PiP window corners in pixels (0–32, 0 disables) | 20 |
 
 Available corners: Top Left, Top Right, Bottom Right, Bottom Left.
 

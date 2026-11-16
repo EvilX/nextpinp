@@ -45,7 +45,7 @@ const ROUNDED_EFFECT_NAME = 'nextpinp-rounded-corners';
 
 const ROUNDED_DECLARATIONS = `
 uniform sampler2D tex;
-uniform vec2 actor_size;
+uniform vec4 fbo_box;
 uniform vec4 bounds;
 uniform float radius;
 
@@ -61,8 +61,30 @@ float rounded_alpha(vec2 p) {
 
 const ROUNDED_CODE = `
 cogl_color_out = cogl_color_in * texture2D(tex, cogl_tex_coord_in[0].xy);
-cogl_color_out *= rounded_alpha(cogl_tex_coord_in[0].xy * actor_size);
+cogl_color_out *= rounded_alpha(fbo_box.xy + cogl_tex_coord_in[0].xy * fbo_box.zw);
 `;
+
+// Area of the actor (in actor-local coordinates) covered by the offscreen
+// texture. Mirrors ClutterOffscreenEffect: the paint volume's bounding box,
+// padded by _clutter_actor_box_enlarge_for_effects(). Returns [x, y, w, h].
+function offscreenBox(actor) {
+    let x = 0, y = 0, width = actor.width, height = actor.height;
+
+    const volume = actor.get_paint_volume();
+    if (volume) {
+        const origin = volume.get_origin();
+        x = origin.x;
+        y = origin.y;
+        width = volume.get_width();
+        height = volume.get_height();
+    }
+
+    const x2 = Math.ceil(x + width + 0.75);
+    const y2 = Math.ceil(y + height + 0.75);
+    const w = Math.round(width) + 3;
+    const h = Math.round(height) + 3;
+    return [x2 - w, y2 - h, w, h];
+}
 
 // Masks the window actor to a rounded rectangle matching the visible frame.
 const RoundedCornersEffect = GObject.registerClass(
@@ -94,7 +116,7 @@ class RoundedCornersEffect extends Clutter.ShaderEffect {
         const x1 = frame.x - buffer.x;
         const y1 = frame.y - buffer.y;
 
-        this.set_uniform_float('actor_size', 2, [actor.width, actor.height]);
+        this.set_uniform_float('fbo_box', 4, offscreenBox(actor));
         this.set_uniform_float('bounds', 4,
             [x1, y1, x1 + frame.width, y1 + frame.height]);
         this.set_uniform_float('radius', 1, [this._radius]);
@@ -204,10 +226,14 @@ export default class AutoPiPManager extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._pendingIdles = new Set();
+        this._trackedWindows = new Map();
+        this._grabbedWindow = null;
 
-        // Round PiP windows that were already open before enabling.
-        for (const window of pipWindows())
+        // Handle PiP windows that were already open before enabling.
+        for (const window of pipWindows()) {
             applyRoundedCorners(window, this._settings);
+            this._trackWindow(window);
+        }
 
         this._radiusChangedId = this._settings.connect('changed::corner-radius', () => {
             for (const window of pipWindows())
@@ -223,6 +249,7 @@ export default class AutoPiPManager extends Extension {
 
                 applyPiPAttributes(window, this._settings);
                 applyRoundedCorners(window, this._settings);
+                this._trackWindow(window);
 
                 if (!moveToPiPCorner(window, this._settings)) {
                     const actor = window.get_compositor_private();
@@ -239,16 +266,57 @@ export default class AutoPiPManager extends Extension {
             this._pendingIdles.add(id);
         });
 
-        // Snap to nearest corner when a PiP window drag ends.
-        this._grabOpEndId = global.display.connect('grab-op-end', (_display, window, op) => {
-            if (!window)
-                return;
-            if (op !== Meta.GrabOp.MOVING && op !== Meta.GrabOp.KEYBOARD_MOVING)
-                return;
+        this._grabOpBeginId = global.display.connect('grab-op-begin', (_display, window) => {
+            if (isPiP(window))
+                this._grabbedWindow = window;
+        });
+
+        // Snap to nearest corner when a PiP window move or resize ends.
+        this._grabOpEndId = global.display.connect('grab-op-end', (_display, window) => {
+            this._grabbedWindow = null;
             if (!isPiP(window))
                 return;
             snapToNearestCorner(window, this._settings);
         });
+    }
+
+    // Keep the PiP window glued to its corner when the app resizes it
+    // (e.g. a video with another aspect ratio). Interactive resizes are
+    // handled on grab-op-end instead.
+    _trackWindow(window) {
+        if (this._trackedWindows.has(window))
+            return;
+
+        let idleId = 0;
+        const sizeChangedId = window.connect('size-changed', () => {
+            if (this._grabbedWindow === window || idleId)
+                return;
+            idleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._pendingIdles.delete(idleId);
+                idleId = 0;
+                moveToPiPCorner(window, this._settings);
+                return GLib.SOURCE_REMOVE;
+            });
+            this._pendingIdles.add(idleId);
+        });
+        const unmanagedId = window.connect('unmanaged', () => {
+            this._untrackWindow(window);
+            if (idleId) {
+                GLib.source_remove(idleId);
+                this._pendingIdles.delete(idleId);
+            }
+        });
+
+        this._trackedWindows.set(window, [sizeChangedId, unmanagedId]);
+    }
+
+    _untrackWindow(window) {
+        const ids = this._trackedWindows.get(window);
+        if (!ids)
+            return;
+        for (const id of ids)
+            window.disconnect(id);
+        this._trackedWindows.delete(window);
     }
 
     disable() {
@@ -265,10 +333,20 @@ export default class AutoPiPManager extends Extension {
             this._windowCreatedId = null;
         }
 
+        if (this._grabOpBeginId) {
+            global.display.disconnect(this._grabOpBeginId);
+            this._grabOpBeginId = null;
+        }
+
         if (this._grabOpEndId) {
             global.display.disconnect(this._grabOpEndId);
             this._grabOpEndId = null;
         }
+
+        for (const window of [...this._trackedWindows.keys()])
+            this._untrackWindow(window);
+        this._trackedWindows = null;
+        this._grabbedWindow = null;
 
         for (const id of this._pendingIdles)
             GLib.source_remove(id);
