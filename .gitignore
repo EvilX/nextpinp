@@ -2,3 +2,4 @@
 dist/
 publish.sh
 *.zip
+node_modules/

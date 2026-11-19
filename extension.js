@@ -12,7 +12,7 @@ const PIP_TITLES = [
     'pinp',
 ];
 
-function isPiP(window) {
+export function isPiP(window) {
     if (!window)
         return false;
     if (window.get_window_type() !== Meta.WindowType.NORMAL)
@@ -159,7 +159,7 @@ function pipWindows() {
 }
 
 // Returns the corner key and target {x, y} for the given corner + offset.
-function cornerPosition(corner, offset, workArea, frameRect) {
+export function cornerPosition(corner, offset, workArea, frameRect) {
     switch (corner) {
         case 'top-left':
             return { x: workArea.x + offset, y: workArea.y + offset };
@@ -198,22 +198,24 @@ function moveToPiPCorner(window, settings) {
     return true;
 }
 
-// Snap to the nearest corner after a drag, then persist the new corner in settings.
-function snapToNearestCorner(window, settings) {
-    const workArea = window.get_work_area_current_monitor();
-    const frameRect = window.get_frame_rect();
-    const offset = settings.get_int('offset');
-
-    // Use window centre to decide which quadrant it's in.
+// Corner of the work area whose quadrant contains the window centre.
+export function nearestCorner(workArea, frameRect) {
     const cx = frameRect.x + frameRect.width / 2;
     const cy = frameRect.y + frameRect.height / 2;
     const onLeft = cx < workArea.x + workArea.width / 2;
     const onTop  = cy < workArea.y + workArea.height / 2;
 
-    const corner =
-        onLeft && onTop  ? 'top-left'    :
-        !onLeft && onTop ? 'top-right'   :
-        onLeft           ? 'bottom-left' : 'bottom-right';
+    if (onTop)
+        return onLeft ? 'top-left' : 'top-right';
+    return onLeft ? 'bottom-left' : 'bottom-right';
+}
+
+// Snap to the nearest corner after a drag, then persist the new corner in settings.
+function snapToNearestCorner(window, settings) {
+    const workArea = window.get_work_area_current_monitor();
+    const frameRect = window.get_frame_rect();
+    const offset = settings.get_int('offset');
+    const corner = nearestCorner(workArea, frameRect);
 
     const { x, y } = cornerPosition(corner, offset, workArea, frameRect);
     window.move_frame(true, x, y);

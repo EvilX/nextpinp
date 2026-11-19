@@ -56,12 +56,28 @@ gnome-extensions prefs nextpinp@leonid.nasedkin
 ## Сборка архива для публикации
 
 ```bash
-gnome-extensions pack --force --podir=po \
-    --schema=schemas/org.gnome.shell.extensions.auto-pip-manager.gschema.xml \
-    --out-dir=. .
+./build.sh
 ```
 
-Получится `nextpinp@leonid.nasedkin.shell-extension.zip`, готовый для загрузки на extensions.gnome.org.
+Получится `dist/nextpinp@leonid.nasedkin.shell-extension.zip`, готовый для загрузки на extensions.gnome.org.
+
+## Разработка
+
+```bash
+npm install
+npm run lint
+npm test
+```
+
+GitHub Actions на каждый push и pull request запускает линтер и тесты, затем собирает архив (доступен как артефакт workflow).
+
+Чтобы выпустить релиз, увеличьте `version` в `metadata.json`, закоммитьте и запушьте соответствующий тег:
+
+```bash
+git tag v11 && git push origin v11
+```
+
+Workflow проверит, что тег совпадает с `metadata.json`, и создаст GitHub-релиз с приложенным архивом.
 
 ## Добавление нового языка
 
@@ -78,6 +94,8 @@ gnome-extensions pack --force --podir=po \
 ├── schemas/           Схема GSettings
 ├── po/                Исходники переводов (.po)
 ├── install.sh         Скрипт сборки и установки
+├── build.sh           Сборка архива для публикации
+├── tests/             Юнит-тесты (node:test)
 └── screenshot.png     Скриншот
 ```
 

@@ -56,12 +56,28 @@ Available corners: Top Left, Top Right, Bottom Right, Bottom Left.
 ## Building a release archive
 
 ```bash
-gnome-extensions pack --force --podir=po \
-    --schema=schemas/org.gnome.shell.extensions.auto-pip-manager.gschema.xml \
-    --out-dir=. .
+./build.sh
 ```
 
-This produces `nextpinp@leonid.nasedkin.shell-extension.zip` ready for upload to extensions.gnome.org.
+This produces `dist/nextpinp@leonid.nasedkin.shell-extension.zip` ready for upload to extensions.gnome.org.
+
+## Development
+
+```bash
+npm install
+npm run lint
+npm test
+```
+
+GitHub Actions runs lint and tests on every push and pull request, then builds the archive (available as a workflow artifact).
+
+To publish a release, bump `version` in `metadata.json`, commit, and push a matching tag:
+
+```bash
+git tag v11 && git push origin v11
+```
+
+The workflow checks that the tag matches `metadata.json` and creates a GitHub release with the archive attached.
 
 ## Adding a new translation
 
@@ -78,6 +94,8 @@ This produces `nextpinp@leonid.nasedkin.shell-extension.zip` ready for upload to
 ├── schemas/           GSettings schema
 ├── po/                Translation sources (.po)
 ├── install.sh         Build & install script
+├── build.sh           Release archive build script
+├── tests/             Unit tests (node:test)
 └── screenshot.png     Screenshot
 ```
 

@@ -2,7 +2,7 @@ import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-const CORNER_VALUES = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+export const CORNER_VALUES = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
 
 export default class AutoPiPPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
