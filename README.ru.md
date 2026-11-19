@@ -2,7 +2,7 @@
 
 **Расширение для GNOME Shell**, которое автоматически управляет окнами режима «картинка в картинке» и добавляет поведение как в macOS.
 
-[GNOME Extensions](https://extensions.gnome.org/extension/9827/auto-pip-manager/) · [English version](README.md)
+[Последний релиз](https://github.com/EvilX/nextpinp/releases/latest) · [GNOME Extensions](https://extensions.gnome.org/extension/9827/auto-pip-manager/) · [English version](README.md)
 
 ![Скриншот Auto PiP Manager](screenshot.png)
 
@@ -24,7 +24,15 @@ PiP-окна определяются по заголовку или WM-клас
 
 ## Установка
 
-Установите с [extensions.gnome.org](https://extensions.gnome.org/extension/9827/auto-pip-manager/) или из исходников:
+Установите с [extensions.gnome.org](https://extensions.gnome.org/extension/9827/auto-pip-manager/), из [последнего релиза](https://github.com/EvilX/nextpinp/releases/latest/download/nextpinp@leonid.nasedkin.shell-extension.zip):
+
+```bash
+curl -LO https://github.com/EvilX/nextpinp/releases/latest/download/nextpinp@leonid.nasedkin.shell-extension.zip
+gnome-extensions install --force nextpinp@leonid.nasedkin.shell-extension.zip
+gnome-extensions enable nextpinp@leonid.nasedkin
+```
+
+или из исходников:
 
 ```bash
 git clone https://github.com/EvilX/nextpinp.git

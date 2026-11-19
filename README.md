@@ -2,7 +2,7 @@
 
 **GNOME Shell extension** that automatically manages Picture-in-Picture windows and adds macOS-like behaviour.
 
-[GNOME Extensions](https://extensions.gnome.org/extension/9827/auto-pip-manager/) · [Русская версия](README.ru.md)
+[Latest release](https://github.com/EvilX/nextpinp/releases/latest) · [GNOME Extensions](https://extensions.gnome.org/extension/9827/auto-pip-manager/) · [Русская версия](README.ru.md)
 
 ![Auto PiP Manager screenshot](screenshot.png)
 
@@ -24,7 +24,15 @@ PiP windows are detected by window title or WM class (`Picture-in-Picture` and s
 
 ## Installation
 
-Install from [extensions.gnome.org](https://extensions.gnome.org/extension/9827/auto-pip-manager/) or from source:
+Install from [extensions.gnome.org](https://extensions.gnome.org/extension/9827/auto-pip-manager/), from the [latest release](https://github.com/EvilX/nextpinp/releases/latest/download/nextpinp@leonid.nasedkin.shell-extension.zip):
+
+```bash
+curl -LO https://github.com/EvilX/nextpinp/releases/latest/download/nextpinp@leonid.nasedkin.shell-extension.zip
+gnome-extensions install --force nextpinp@leonid.nasedkin.shell-extension.zip
+gnome-extensions enable nextpinp@leonid.nasedkin
+```
+
+or from source:
 
 ```bash
 git clone https://github.com/EvilX/nextpinp.git
