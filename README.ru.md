@@ -71,10 +71,19 @@ gnome-extensions prefs nextpinp@leonid.nasedkin
 
 ## Разработка
 
+Требования: Node.js 22+ для линтера и тестов; `glib-compile-schemas`, `msgfmt` (gettext), `zip` и `python3` для `build.sh` / `install.sh`.
+
 ```bash
 npm install
 npm run lint
 npm test
+```
+
+Тесты запускаются в Node с заглушками для импортов `gi://` и `resource://` (`tests/stubs.mjs`), поэтому они покрывают чистые функции, экспортируемые из `extension.js` (`isPiP`, `cornerPosition`, `nearestCorner`), и согласованность `metadata.json`, схемы GSettings и `po/POTFILES`. Само поведение окон нужно проверять в настоящей сессии GNOME Shell; для этого удобна вложенная сессия:
+
+```bash
+./install.sh
+dbus-run-session gnome-shell --devkit --wayland
 ```
 
 GitHub Actions на каждый push и pull request запускает линтер и тесты, затем собирает архив (доступен как артефакт workflow).
@@ -91,7 +100,9 @@ Workflow проверит, что тег совпадает с `metadata.json`, 
 
 1. Скопировать `po/ru.po` в `po/<код>.po` (например, `po/de.po`)
 2. Перевести строки `msgstr`
-3. Запустить `./install.sh`: новый `.mo`-файл скомпилируется автоматически
+3. Запустить `./install.sh` (или `./build.sh`): новый `.mo`-файл скомпилируется автоматически
+
+Новые строки для перевода берутся из `prefs.js` (указан в `po/POTFILES`); их нужно добавить во все `.po`-файлы.
 
 ## Структура проекта
 
@@ -103,7 +114,11 @@ Workflow проверит, что тег совпадает с `metadata.json`, 
 ├── po/                Исходники переводов (.po)
 ├── install.sh         Скрипт сборки и установки
 ├── build.sh           Сборка архива для публикации
-├── tests/             Юнит-тесты (node:test)
+├── tests/             Юнит-тесты (node:test) и заглушки модулей GJS
+├── eslint.config.js   Конфигурация ESLint
+├── package.json       Dev-зависимости и npm-скрипты (lint, test)
+├── .github/workflows/ CI: линтер, тесты, сборка архива, релизы
+├── AGENTS.md          Заметки для ИИ-агентов
 └── screenshot.png     Скриншот
 ```
 

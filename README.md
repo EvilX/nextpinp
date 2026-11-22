@@ -71,10 +71,19 @@ This produces `dist/nextpinp@leonid.nasedkin.shell-extension.zip` ready for uplo
 
 ## Development
 
+Requirements: Node.js 22+ for lint and tests; `glib-compile-schemas`, `msgfmt` (gettext), `zip` and `python3` for `build.sh` / `install.sh`.
+
 ```bash
 npm install
 npm run lint
 npm test
+```
+
+Tests run under Node with stubbed `gi://` and `resource://` imports (`tests/stubs.mjs`), so they cover the pure helpers exported from `extension.js` (`isPiP`, `cornerPosition`, `nearestCorner`) and the consistency of `metadata.json`, the GSettings schema and `po/POTFILES`. Window behaviour itself has to be checked in a real GNOME Shell session; a nested session is handy for that:
+
+```bash
+./install.sh
+dbus-run-session gnome-shell --devkit --wayland
 ```
 
 GitHub Actions runs lint and tests on every push and pull request, then builds the archive (available as a workflow artifact).
@@ -91,7 +100,9 @@ The workflow checks that the tag matches `metadata.json` and creates a GitHub re
 
 1. Copy `po/ru.po` to `po/<lang>.po` (e.g. `po/de.po`)
 2. Translate the `msgstr` values
-3. Run `./install.sh`: the new `.mo` file is compiled automatically
+3. Run `./install.sh` (or `./build.sh`): the new `.mo` file is compiled automatically
+
+New translatable strings come from `prefs.js` (listed in `po/POTFILES`); add them to every `.po` file.
 
 ## Project structure
 
@@ -103,7 +114,11 @@ The workflow checks that the tag matches `metadata.json` and creates a GitHub re
 ├── po/                Translation sources (.po)
 ├── install.sh         Build & install script
 ├── build.sh           Release archive build script
-├── tests/             Unit tests (node:test)
+├── tests/             Unit tests (node:test) and GJS module stubs
+├── eslint.config.js   ESLint configuration
+├── package.json       Dev dependencies and npm scripts (lint, test)
+├── .github/workflows/ CI: lint, tests, archive build, releases
+├── AGENTS.md          Notes for AI coding agents
 └── screenshot.png     Screenshot
 ```
 
