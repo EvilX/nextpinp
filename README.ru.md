@@ -2,6 +2,8 @@
 
 **Расширение для GNOME Shell**, которое автоматически управляет окнами режима «картинка в картинке» и добавляет поведение как в macOS.
 
+[![Sponsor](https://img.shields.io/github/sponsors/EvilX?label=Sponsor&logo=GitHub&color=ea4aaa)](https://github.com/sponsors/EvilX)
+
 [Последний релиз](https://github.com/EvilX/nextpinp/releases/latest) · [GNOME Extensions](https://extensions.gnome.org/extension/9827/auto-pip-manager/) · [English version](README.md)
 
 ![Скриншот Auto PiP Manager](screenshot.png)
