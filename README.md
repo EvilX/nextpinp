@@ -16,6 +16,8 @@
 - **Snaps** a PiP window to the nearest screen corner after you move or resize it; the new corner is remembered for the next PiP window
 - Keeps a PiP window in its corner when the app resizes it (e.g. a video with a different aspect ratio)
 - Draws PiP windows with **rounded corners** (adjustable radius)
+- Hides PiP windows from the **Overview** (optional, on by default)
+- Optionally keeps PiP windows **out of keyboard focus**, focus goes back to the window you were working in after you click the video controls
 - No Top Bar icon and no background processes: the extension only reacts to window events
 
 PiP windows are detected by window title or WM class (`Picture-in-Picture` and similar), so it works with Firefox and Chromium-based browsers.
@@ -57,6 +59,8 @@ gnome-extensions prefs nextpinp@leonid.nasedkin
 |---------|-------------|---------|
 | Always on Top | Keep PiP windows above all other windows | On |
 | Always Visible on All Workspaces | Show PiP windows on every workspace | On |
+| Never in Focus | Return keyboard focus to the previous window when a PiP window takes it; moving and resizing the PiP window still work, but it cannot be reached with Alt+Tab | Off |
+| Do Not Show on Overview | Hide PiP windows from the Overview workspace previews and thumbnails; applies the next time the Overview opens | On |
 | Corner | Screen corner where PiP windows are placed (also updated when you drag a PiP window to another corner) | Bottom Right |
 | Offset | Distance from the screen corner in pixels (0–50) | 20 |
 | Corner Radius | Rounding of the PiP window corners in pixels (0–32, 0 disables) | 20 |
