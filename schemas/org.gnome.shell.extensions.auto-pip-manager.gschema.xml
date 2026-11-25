@@ -29,5 +29,15 @@
       <summary>Corner radius</summary>
       <description>Radius of the PiP window's rounded corners in pixels, 0 disables rounding</description>
     </key>
+    <key name="never-in-focus" type="b">
+      <default>false</default>
+      <summary>Never in focus</summary>
+      <description>Move keyboard focus back to another window when a PiP window takes it; moving or resizing the PiP window still works</description>
+    </key>
+    <key name="do-not-show-on-overview" type="b">
+      <default>true</default>
+      <summary>Do not show on Overview</summary>
+      <description>Hide PiP windows from the Overview workspace previews and thumbnails</description>
+    </key>
   </schema>
 </schemalist>

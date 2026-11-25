@@ -23,6 +23,18 @@ msgstr "Показывать на всех рабочих столах"
 msgid "Show PiP window on every workspace"
 msgstr "Отображать PiP-окно на каждом рабочем столе"
 
+msgid "Never in Focus"
+msgstr "Не передавать фокус"
+
+msgid "Return keyboard focus to another window when PiP takes it"
+msgstr "Возвращать фокус клавиатуры другому окну, когда его получает PiP-окно"
+
+msgid "Do Not Show on Overview"
+msgstr "Не показывать в обзоре"
+
+msgid "Hide PiP window from workspace previews and thumbnails"
+msgstr "Скрывать PiP-окно в превью и миниатюрах рабочих столов"
+
 msgid "Window Position"
 msgstr "Расположение окна"
 

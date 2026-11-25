@@ -4,9 +4,13 @@
 const STUBS = {
     'gi://Meta': 'export default { WindowType: { NORMAL: 0, DIALOG: 3, UTILITY: 6 } };',
     'gi://GObject': 'export default { registerClass: (...args) => args.at(-1) };',
-    'gi://Clutter': 'export default { ShaderEffect: class {} };',
+    'gi://Clutter': 'export default { ShaderEffect: class {}, ModifierType: {} };',
     'resource:///org/gnome/shell/extensions/extension.js':
         'export class Extension {}',
+    'resource:///org/gnome/shell/ui/workspace.js':
+        'export class Workspace {}',
+    'resource:///org/gnome/shell/ui/workspaceThumbnail.js':
+        'export class WorkspaceThumbnail {}',
     'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js':
         'export class ExtensionPreferences {}',
 };

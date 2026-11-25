@@ -1,10 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isPiP, cornerPosition, nearestCorner } from '../extension.js';
+import { isPiP, cornerPosition, nearestCorner, focusFallback } from '../extension.js';
 
-function fakeWindow({ title = '', wmClass = '', wmClassInstance = '', type = 0 } = {}) {
+function fakeWindow({ title = '', wmClass = '', wmClassInstance = '', type = 0, minimized = false } = {}) {
     return {
+        minimized,
         get_window_type: () => type,
         get_title: () => title,
         get_wm_class: () => wmClass,
@@ -75,5 +76,30 @@ describe('nearestCorner', () => {
 
     it('treats the exact centre as bottom-right', () => {
         assert.equal(nearestCorner(workArea, at(860, 450)), 'bottom-right');
+    });
+});
+
+describe('focusFallback', () => {
+    const pip = fakeWindow({ title: 'Picture-in-Picture' });
+    const editor = fakeWindow({ title: 'Editor' });
+    const terminal = fakeWindow({ title: 'Terminal' });
+    const hidden = fakeWindow({ title: 'Mail', minimized: true });
+
+    it('returns the previously focused window', () => {
+        assert.equal(focusFallback(terminal, [pip, editor, terminal]), terminal);
+    });
+
+    it('falls back to the topmost usable window', () => {
+        assert.equal(focusFallback(null, [pip, hidden, editor, terminal]), editor);
+    });
+
+    it('skips a previous window that left the workspace or was minimized', () => {
+        assert.equal(focusFallback(terminal, [pip, editor]), editor);
+        assert.equal(focusFallback(hidden, [pip, hidden, terminal]), terminal);
+    });
+
+    it('returns null when only PiP windows are left', () => {
+        assert.equal(focusFallback(pip, [pip, hidden]), null);
+        assert.equal(focusFallback(null, []), null);
     });
 });

@@ -4,6 +4,8 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Workspace } from 'resource:///org/gnome/shell/ui/workspace.js';
+import { WorkspaceThumbnail } from 'resource:///org/gnome/shell/ui/workspaceThumbnail.js';
 
 const PIP_TITLES = [
     'picture-in-picture',
@@ -40,6 +42,9 @@ function applyPiPAttributes(window, settings) {
     if (settings.get_boolean('always-on-top'))
         window.make_above();
 }
+
+const BUTTONS_MASK = Clutter.ModifierType.BUTTON1_MASK |
+    Clutter.ModifierType.BUTTON2_MASK | Clutter.ModifierType.BUTTON3_MASK;
 
 const ROUNDED_EFFECT_NAME = 'nextpinp-rounded-corners';
 
@@ -152,10 +157,25 @@ function removeRoundedCorners(window) {
         actor.remove_effect(effect);
 }
 
+function buttonsPressed() {
+    const [, , mods] = global.get_pointer();
+    return (mods & BUTTONS_MASK) !== 0;
+}
+
 function pipWindows() {
     return global.get_window_actors()
         .map(a => a.get_meta_window())
         .filter(w => isPiP(w));
+}
+
+// Window that should get keyboard focus instead of a PiP window: the one
+// focused before it if still usable, otherwise the topmost usable window of
+// the active workspace's tab list. Returns null when there is none.
+export function focusFallback(previous, tabList) {
+    const usable = w => w && !w.minimized && !isPiP(w);
+    if (usable(previous) && tabList.includes(previous))
+        return previous;
+    return tabList.find(usable) ?? null;
 }
 
 // Returns the corner key and target {x, y} for the given corner + offset.
@@ -230,6 +250,21 @@ export default class AutoPiPManager extends Extension {
         this._pendingIdles = new Set();
         this._trackedWindows = new Map();
         this._grabbedWindow = null;
+        this._lastFocusedWindow = null;
+        this._focusRestoreId = 0;
+
+        this._hideFromOverview();
+
+        this._focusWindowId = global.display.connect('notify::focus-window', () => {
+            const window = global.display.focus_window;
+            if (isPiP(window))
+                this._queueFocusRestore();
+            else if (window)
+                this._lastFocusedWindow = window;
+        });
+        this._neverInFocusChangedId = this._settings.connect('changed::never-in-focus', () => {
+            this._queueFocusRestore();
+        });
 
         // Handle PiP windows that were already open before enabling.
         for (const window of pipWindows()) {
@@ -252,6 +287,7 @@ export default class AutoPiPManager extends Extension {
                 applyPiPAttributes(window, this._settings);
                 applyRoundedCorners(window, this._settings);
                 this._trackWindow(window);
+                this._queueFocusRestore();
 
                 if (!moveToPiPCorner(window, this._settings)) {
                     const actor = window.get_compositor_private();
@@ -279,7 +315,71 @@ export default class AutoPiPManager extends Extension {
             if (!isPiP(window))
                 return;
             snapToNearestCorner(window, this._settings);
+            this._queueFocusRestore();
         });
+    }
+
+    // Overview previews and thumbnails ask _isOverviewWindow() which windows
+    // to show; both are rebuilt every time the Overview opens, so a changed
+    // setting applies the next time it is shown.
+    _hideFromOverview() {
+        const settings = this._settings;
+        const hidden = window => settings.get_boolean('do-not-show-on-overview') && isPiP(window);
+
+        const workspaceFilter = Workspace.prototype._isOverviewWindow;
+        const thumbnailFilter = WorkspaceThumbnail.prototype._isOverviewWindow;
+        this._overviewFilters = [workspaceFilter, thumbnailFilter];
+
+        Workspace.prototype._isOverviewWindow = function (window) {
+            return workspaceFilter.call(this, window) && !hidden(window);
+        };
+        WorkspaceThumbnail.prototype._isOverviewWindow = function (actor) {
+            return thumbnailFilter.call(this, actor) && !hidden(actor.get_meta_window());
+        };
+    }
+
+    _restoreOverview() {
+        if (!this._overviewFilters)
+            return;
+        [Workspace.prototype._isOverviewWindow,
+            WorkspaceThumbnail.prototype._isOverviewWindow] = this._overviewFilters;
+        this._overviewFilters = null;
+    }
+
+    // Moves keyboard focus off a PiP window. Mutter focuses a window on button
+    // press, before an interactive move starts, so wait until the buttons are
+    // released and no PiP grab is active.
+    _queueFocusRestore() {
+        if (!this._settings.get_boolean('never-in-focus') || this._focusRestoreId)
+            return;
+
+        this._focusRestoreId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            if (this._grabbedWindow || buttonsPressed())
+                return GLib.SOURCE_CONTINUE;
+
+            this._focusRestoreId = 0;
+            this._restoreFocus();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _restoreFocus() {
+        if (!this._settings.get_boolean('never-in-focus'))
+            return;
+
+        const pip = global.display.focus_window;
+        if (!isPiP(pip))
+            return;
+
+        const workspace = global.workspace_manager.get_active_workspace();
+        const tabList = global.display.get_tab_list(Meta.TabList.NORMAL, workspace);
+        const target = focusFallback(this._lastFocusedWindow, tabList);
+        const timestamp = global.display.get_current_time_roundtrip();
+
+        if (target)
+            target.focus(timestamp);
+        else
+            global.display.unset_input_focus(timestamp);
     }
 
     // Keep the PiP window glued to its corner when the app resizes it
@@ -322,6 +422,24 @@ export default class AutoPiPManager extends Extension {
     }
 
     disable() {
+        this._restoreOverview();
+
+        if (this._focusWindowId) {
+            global.display.disconnect(this._focusWindowId);
+            this._focusWindowId = null;
+        }
+
+        if (this._neverInFocusChangedId) {
+            this._settings.disconnect(this._neverInFocusChangedId);
+            this._neverInFocusChangedId = null;
+        }
+
+        if (this._focusRestoreId) {
+            GLib.source_remove(this._focusRestoreId);
+            this._focusRestoreId = 0;
+        }
+        this._lastFocusedWindow = null;
+
         if (this._radiusChangedId) {
             this._settings.disconnect(this._radiusChangedId);
             this._radiusChangedId = null;

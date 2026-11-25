@@ -30,7 +30,8 @@ describe('settings schema', () => {
         assert.ok(CORNER_VALUES.includes(corner), corner);
     });
 
-    for (const key of ['corner', 'offset', 'always-on-top', 'always-on-all-workspaces', 'corner-radius'])
+    for (const key of ['corner', 'offset', 'always-on-top', 'always-on-all-workspaces', 'corner-radius',
+        'never-in-focus', 'do-not-show-on-overview'])
         it(`declares key "${key}"`, () => assert.match(schema, new RegExp(`<key name="${key}"`)));
 });
 
