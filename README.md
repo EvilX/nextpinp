@@ -1,3 +1,5 @@
+<img src="icon.svg" alt="" width="96" height="96">
+
 # Auto PiP Manager
 
 **GNOME Shell extension** that automatically manages Picture-in-Picture windows and adds macOS-like behaviour.
