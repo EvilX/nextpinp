@@ -384,12 +384,10 @@ export default class AutoPiPManager extends Extension {
             return;
 
         this._placeAllId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-            this._pendingIdles.delete(this._placeAllId);
             this._placeAllId = 0;
             this._placeAll();
             return GLib.SOURCE_REMOVE;
         });
-        this._pendingIdles.add(this._placeAllId);
     }
 
     // A new window may have no size yet; place it once it has been drawn.
@@ -544,6 +542,11 @@ export default class AutoPiPManager extends Extension {
         }
         this._lastFocusedWindow = null;
 
+        if (this._placeAllId) {
+            GLib.source_remove(this._placeAllId);
+            this._placeAllId = 0;
+        }
+
         for (const window of [...this._trackedWindows.keys()]) {
             removeRoundedCorners(window);
             this._untrackWindow(window);
@@ -554,7 +557,6 @@ export default class AutoPiPManager extends Extension {
         for (const id of this._pendingIdles)
             GLib.source_remove(id);
         this._pendingIdles = null;
-        this._placeAllId = 0;
 
         this._settings = null;
     }

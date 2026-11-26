@@ -335,6 +335,16 @@ describe('enable / disable', () => {
         assertCleanedUp();
     });
 
+    it('cancels a pending re-placement', () => {
+        extension.enable();
+        createWindow();
+        display.emit('workareas-changed');
+        assert.equal(sources.size, 1);
+
+        extension.disable();
+        assertCleanedUp();
+    });
+
     it('stops tracking a window when it is closed', () => {
         extension.enable();
         const pip = createWindow();
