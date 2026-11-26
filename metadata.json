@@ -3,7 +3,7 @@
   "description": "Automatically manages picture-in-picture windows: keeps them always on top and visible on all workspaces, places a new PiP window in the chosen screen corner, snaps it to the nearest corner after you drag it, draws it with rounded corners (adjustable radius), and hides it from the Overview. Optionally, PiP windows never keep keyboard focus: focus returns to the window you were working in.",
   "uuid": "nextpinp@leonid.nasedkin",
   "shell-version": ["51"],
-  "version": 11,
+  "version": 12,
   "settings-schema": "org.gnome.shell.extensions.auto-pip-manager",
   "url": "https://github.com/EvilX/nextpinp"
 }
