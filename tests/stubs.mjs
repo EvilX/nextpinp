@@ -2,7 +2,7 @@
 // imported under Node. Only what is touched at module load or by the
 // functions under test is provided.
 const STUBS = {
-    'gi://Meta': 'export default { WindowType: { NORMAL: 0, DIALOG: 3, UTILITY: 6 } };',
+    'gi://Meta': 'export default { WindowType: { NORMAL: 0, DIALOG: 3, UTILITY: 6 }, TabList: { NORMAL: 0 } };',
     'gi://GObject': 'export default { registerClass: (...args) => args.at(-1) };',
     'gi://Clutter': 'export default { ShaderEffect: class {}, ModifierType: {} };',
     'resource:///org/gnome/shell/extensions/extension.js':

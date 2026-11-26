@@ -26,6 +26,11 @@ describe('isPiP', () => {
         assert.equal(isPiP(fakeWindow({ title: 'Video - Picture in Picture' })), true);
     });
 
+    it('ignores windows that only mention picture-in-picture in the title', () => {
+        assert.equal(isPiP(fakeWindow({ title: 'How to use Picture-in-Picture — Mozilla Firefox' })), false);
+        assert.equal(isPiP(fakeWindow({ title: 'Picture in Picture tutorial - YouTube' })), false);
+    });
+
     it('matches by WM class and instance', () => {
         assert.equal(isPiP(fakeWindow({ wmClass: 'PictureInPicture' })), true);
         assert.equal(isPiP(fakeWindow({ wmClassInstance: 'picture_in_picture' })), true);
@@ -96,6 +101,11 @@ describe('focusFallback', () => {
     it('skips a previous window that left the workspace or was minimized', () => {
         assert.equal(focusFallback(terminal, [pip, editor]), editor);
         assert.equal(focusFallback(hidden, [pip, hidden, terminal]), terminal);
+    });
+
+    it('uses the given PiP predicate instead of the title', () => {
+        const tracked = new Set([editor]);
+        assert.equal(focusFallback(editor, [editor, pip, terminal], w => tracked.has(w)), pip);
     });
 
     it('returns null when only PiP windows are left', () => {

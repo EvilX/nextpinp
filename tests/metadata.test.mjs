@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
-import { CORNER_VALUES } from '../prefs.js';
+import { CORNER_VALUES, cornerIndex } from '../prefs.js';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFileSync(new URL(path, root), 'utf8');
@@ -33,6 +33,16 @@ describe('settings schema', () => {
     for (const key of ['corner', 'offset', 'always-on-top', 'always-on-all-workspaces', 'corner-radius',
         'never-in-focus', 'do-not-show-on-overview'])
         it(`declares key "${key}"`, () => assert.match(schema, new RegExp(`<key name="${key}"`)));
+});
+
+describe('cornerIndex', () => {
+    it('maps every corner to its combo row position', () => {
+        CORNER_VALUES.forEach((corner, index) => assert.equal(cornerIndex(corner), index));
+    });
+
+    it('falls back to the first entry for unknown values', () => {
+        assert.equal(cornerIndex('nonsense'), 0);
+    });
 });
 
 describe('translations', () => {

@@ -20,13 +20,15 @@ export function isPiP(window) {
     if (window.get_window_type() !== Meta.WindowType.NORMAL)
         return false;
 
-    const title = (window.get_title() ?? '').toLowerCase();
+    const title = (window.get_title() ?? '').trim().toLowerCase();
     if (title && PIP_TITLES.some(t => title === t))
         return true;
 
     const wmClass = window.get_wm_class() ?? '';
     const wmClassInstance = window.get_wm_class_instance() ?? '';
-    if (title && /picture.?in.?picture/i.test(title))
+    // Anchored to the end of the title: "Video - Picture in Picture" is a PiP
+    // window, "How to use Picture-in-Picture — Firefox" is a browser window.
+    if (title && /picture.?in.?picture$/i.test(title))
         return true;
     if (wmClass && /picture.?in.?picture/i.test(wmClass))
         return true;
@@ -72,6 +74,12 @@ cogl_color_out *= rounded_alpha(fbo_box.xy + cogl_tex_coord_in[0].xy * fbo_box.z
 // Area of the actor (in actor-local coordinates) covered by the offscreen
 // texture. Mirrors ClutterOffscreenEffect: the paint volume's bounding box,
 // padded by _clutter_actor_box_enlarge_for_effects(). Returns [x, y, w, h].
+//
+// FRAGILE: the 0.75 / +3 padding copies private Clutter code (update_fbo() in
+// clutter-offscreen-effect.c and _clutter_actor_box_enlarge_for_effects() in
+// clutter-actor-box.c). If it changes there, the mask silently shifts by a
+// pixel. Re-check both, and the corners by eye, whenever "shell-version" in
+// metadata.json is bumped.
 function offscreenBox(actor) {
     let x = 0, y = 0, width = actor.width, height = actor.height;
 
@@ -113,7 +121,13 @@ class RoundedCornersEffect extends Clutter.ShaderEffect {
 
     vfunc_paint_target(node, paintContext) {
         const actor = this.actor;
-        const window = actor.get_meta_window();
+        // The actor can outlive its window (e.g. during the close animation).
+        const window = actor?.get_meta_window();
+        if (!window) {
+            super.vfunc_paint_target(node, paintContext);
+            return;
+        }
+
         const buffer = window.get_buffer_rect();
         const frame = window.get_frame_rect();
 
@@ -162,7 +176,9 @@ function buttonsPressed() {
     return (mods & BUTTONS_MASK) !== 0;
 }
 
-function pipWindows() {
+// PiP windows that are already open. Only used when the extension is enabled;
+// afterwards a window counts as PiP if it is tracked, see _trackWindow().
+function findPiPWindows() {
     return global.get_window_actors()
         .map(a => a.get_meta_window())
         .filter(w => isPiP(w));
@@ -171,8 +187,8 @@ function pipWindows() {
 // Window that should get keyboard focus instead of a PiP window: the one
 // focused before it if still usable, otherwise the topmost usable window of
 // the active workspace's tab list. Returns null when there is none.
-export function focusFallback(previous, tabList) {
-    const usable = w => w && !w.minimized && !isPiP(w);
+export function focusFallback(previous, tabList, isPipWindow = isPiP) {
+    const usable = w => w && !w.minimized && !isPipWindow(w);
     if (usable(previous) && tabList.includes(previous))
         return previous;
     return tabList.find(usable) ?? null;
@@ -202,22 +218,6 @@ export function cornerPosition(corner, offset, workArea, frameRect) {
     }
 }
 
-function moveToPiPCorner(window, settings) {
-    const workArea = window.get_work_area_current_monitor();
-    const frameRect = window.get_frame_rect();
-
-    if (!frameRect.width || !frameRect.height)
-        return false;
-
-    const { x, y } = cornerPosition(
-        settings.get_string('corner'),
-        settings.get_int('offset'),
-        workArea, frameRect
-    );
-    window.move_frame(true, x, y);
-    return true;
-}
-
 // Corner of the work area whose quadrant contains the window centre.
 export function nearestCorner(workArea, frameRect) {
     const cx = frameRect.x + frameRect.width / 2;
@@ -230,120 +230,221 @@ export function nearestCorner(workArea, frameRect) {
     return onLeft ? 'bottom-left' : 'bottom-right';
 }
 
-// Snap to the nearest corner after a drag, then persist the new corner in settings.
-function snapToNearestCorner(window, settings) {
+// Fullscreen and maximized windows fill the monitor and must stay put.
+function isPlaceable(window) {
+    return !window.fullscreen &&
+        !window.maximized_horizontally && !window.maximized_vertically;
+}
+
+// Moves the window into the given corner of its monitor's work area.
+// Returns false if it was left alone (not placeable or has no size yet).
+function moveToCorner(window, corner, settings) {
+    if (!isPlaceable(window))
+        return false;
+
     const workArea = window.get_work_area_current_monitor();
     const frameRect = window.get_frame_rect();
-    const offset = settings.get_int('offset');
-    const corner = nearestCorner(workArea, frameRect);
+    if (!frameRect.width || !frameRect.height)
+        return false;
 
-    const { x, y } = cornerPosition(corner, offset, workArea, frameRect);
+    const { x, y } = cornerPosition(corner, settings.get_int('offset'), workArea, frameRect);
     window.move_frame(true, x, y);
+    return true;
+}
 
-    // Persist so the next PiP window opens in the same corner.
-    settings.set_string('corner', corner);
+// Moves the window into the corner it is closest to. Returns that corner, or
+// null if the window was left alone.
+function moveToNearestCorner(window, settings) {
+    const corner = nearestCorner(
+        window.get_work_area_current_monitor(), window.get_frame_rect());
+    return moveToCorner(window, corner, settings) ? corner : null;
 }
 
 export default class AutoPiPManager extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._pendingIdles = new Set();
+        // Window -> { signalIds, idleId, firstFrame }. A window is treated as
+        // PiP if and only if it is in this map: isPiP() is evaluated once,
+        // when the window appears, so an ordinary window whose title later
+        // happens to mention picture-in-picture is never picked up.
         this._trackedWindows = new Map();
         this._grabbedWindow = null;
         this._lastFocusedWindow = null;
         this._focusRestoreId = 0;
+        this._placeAllId = 0;
+        this._persistingCorner = false;
 
         this._hideFromOverview();
 
-        this._focusWindowId = global.display.connect('notify::focus-window', () => {
-            const window = global.display.focus_window;
-            if (isPiP(window))
-                this._queueFocusRestore();
-            else if (window)
-                this._lastFocusedWindow = window;
-        });
-        this._neverInFocusChangedId = this._settings.connect('changed::never-in-focus', () => {
-            this._queueFocusRestore();
-        });
-
         // Handle PiP windows that were already open before enabling.
-        for (const window of pipWindows()) {
+        for (const window of findPiPWindows()) {
             applyRoundedCorners(window, this._settings);
             this._trackWindow(window);
         }
 
-        this._radiusChangedId = this._settings.connect('changed::corner-radius', () => {
-            for (const window of pipWindows())
-                applyRoundedCorners(window, this._settings);
-        });
+        this._settingsSignals = [
+            this._settings.connect('changed::never-in-focus', () => this._queueFocusRestore()),
+            this._settings.connect('changed::corner-radius', () => {
+                for (const window of this._trackedWindows.keys())
+                    applyRoundedCorners(window, this._settings);
+            }),
+            // Chosen in the preferences: move every PiP window there. Not when
+            // the key is written by a drag, which concerns that window only.
+            this._settings.connect('changed::corner', () => {
+                if (!this._persistingCorner)
+                    this._placeAll(this._settings.get_string('corner'));
+            }),
+            this._settings.connect('changed::offset', () => this._placeAll()),
+        ];
 
-        this._windowCreatedId = global.display.connect('window-created', (_display, window) => {
-            const id = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._pendingIdles.delete(id);
+        this._displaySignals = [
+            global.display.connect('notify::focus-window', () => {
+                const window = global.display.focus_window;
+                if (this._isTracked(window))
+                    this._queueFocusRestore();
+                else if (window && !isPiP(window))
+                    // A new PiP window gets focus before it is tracked.
+                    this._lastFocusedWindow = window;
+            }),
 
-                if (!isPiP(window))
+            global.display.connect('window-created', (_display, window) => {
+                const id = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    this._pendingIdles.delete(id);
+
+                    if (!isPiP(window))
+                        return GLib.SOURCE_REMOVE;
+
+                    applyPiPAttributes(window, this._settings);
+                    applyRoundedCorners(window, this._settings);
+                    this._trackWindow(window);
+                    this._queueFocusRestore();
+
+                    if (!moveToCorner(window, this._settings.get_string('corner'), this._settings))
+                        this._placeOnFirstFrame(window);
+
                     return GLib.SOURCE_REMOVE;
+                });
+                this._pendingIdles.add(id);
+            }),
 
-                applyPiPAttributes(window, this._settings);
-                applyRoundedCorners(window, this._settings);
-                this._trackWindow(window);
+            global.display.connect('grab-op-begin', (_display, window) => {
+                if (this._isTracked(window))
+                    this._grabbedWindow = window;
+            }),
+
+            // Snap to nearest corner when a PiP window move or resize ends.
+            global.display.connect('grab-op-end', (_display, window) => {
+                this._grabbedWindow = null;
+                if (!this._isTracked(window))
+                    return;
+                this._snapToNearestCorner(window);
                 this._queueFocusRestore();
+            }),
 
-                if (!moveToPiPCorner(window, this._settings)) {
-                    const actor = window.get_compositor_private();
-                    if (actor) {
-                        const frameId = actor.connect('first-frame', () => {
-                            actor.disconnect(frameId);
-                            moveToPiPCorner(window, this._settings);
-                        });
-                    }
-                }
+            // Monitor layout, scale or panel changed: the corners moved.
+            global.display.connect('workareas-changed', () => this._queuePlaceAll()),
+        ];
+    }
 
-                return GLib.SOURCE_REMOVE;
-            });
-            this._pendingIdles.add(id);
+    _isTracked(window) {
+        return !!window && this._trackedWindows.has(window);
+    }
+
+    // Snap to the nearest corner after a drag, then persist the new corner so
+    // the next PiP window opens there.
+    _snapToNearestCorner(window) {
+        const corner = moveToNearestCorner(window, this._settings);
+        if (!corner || corner === this._settings.get_string('corner'))
+            return;
+
+        this._persistingCorner = true;
+        try {
+            this._settings.set_string('corner', corner);
+        } finally {
+            this._persistingCorner = false;
+        }
+    }
+
+    // Re-places every PiP window: into the given corner, or else into the
+    // corner each one is closest to.
+    _placeAll(corner = null) {
+        for (const window of this._trackedWindows.keys()) {
+            if (window === this._grabbedWindow)
+                continue;
+            if (corner)
+                moveToCorner(window, corner, this._settings);
+            else
+                moveToNearestCorner(window, this._settings);
+        }
+    }
+
+    _queuePlaceAll() {
+        if (this._placeAllId)
+            return;
+
+        this._placeAllId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._pendingIdles.delete(this._placeAllId);
+            this._placeAllId = 0;
+            this._placeAll();
+            return GLib.SOURCE_REMOVE;
         });
+        this._pendingIdles.add(this._placeAllId);
+    }
 
-        this._grabOpBeginId = global.display.connect('grab-op-begin', (_display, window) => {
-            if (isPiP(window))
-                this._grabbedWindow = window;
-        });
+    // A new window may have no size yet; place it once it has been drawn.
+    _placeOnFirstFrame(window) {
+        const actor = window.get_compositor_private();
+        const record = this._trackedWindows.get(window);
+        if (!actor || !record || record.firstFrame)
+            return;
 
-        // Snap to nearest corner when a PiP window move or resize ends.
-        this._grabOpEndId = global.display.connect('grab-op-end', (_display, window) => {
-            this._grabbedWindow = null;
-            if (!isPiP(window))
-                return;
-            snapToNearestCorner(window, this._settings);
-            this._queueFocusRestore();
+        const id = actor.connect('first-frame', () => {
+            actor.disconnect(id);
+            record.firstFrame = null;
+            moveToCorner(window, this._settings.get_string('corner'), this._settings);
         });
+        record.firstFrame = { actor, id };
     }
 
     // Overview previews and thumbnails ask _isOverviewWindow() which windows
     // to show; both are rebuilt every time the Overview opens, so a changed
     // setting applies the next time it is shown.
     _hideFromOverview() {
-        const settings = this._settings;
-        const hidden = window => settings.get_boolean('do-not-show-on-overview') && isPiP(window);
-
-        const workspaceFilter = Workspace.prototype._isOverviewWindow;
-        const thumbnailFilter = WorkspaceThumbnail.prototype._isOverviewWindow;
-        this._overviewFilters = [workspaceFilter, thumbnailFilter];
-
-        Workspace.prototype._isOverviewWindow = function (window) {
-            return workspaceFilter.call(this, window) && !hidden(window);
+        const filter = {
+            hidden: window => this._settings.get_boolean('do-not-show-on-overview') &&
+                this._isTracked(window),
         };
-        WorkspaceThumbnail.prototype._isOverviewWindow = function (actor) {
-            return thumbnailFilter.call(this, actor) && !hidden(actor.get_meta_window());
+        const patch = (proto, toWindow) => {
+            const original = proto._isOverviewWindow;
+            const wrapper = function (arg) {
+                return original.call(this, arg) && !filter.hidden?.(toWindow(arg));
+            };
+            proto._isOverviewWindow = wrapper;
+            return { proto, original, wrapper };
         };
+
+        this._overviewFilter = filter;
+        this._overviewPatches = [
+            patch(Workspace.prototype, window => window),
+            patch(WorkspaceThumbnail.prototype, actor => actor.get_meta_window()),
+        ];
     }
 
     _restoreOverview() {
-        if (!this._overviewFilters)
+        if (!this._overviewPatches)
             return;
-        [Workspace.prototype._isOverviewWindow,
-            WorkspaceThumbnail.prototype._isOverviewWindow] = this._overviewFilters;
-        this._overviewFilters = null;
+
+        // If another extension wrapped the method after us, putting the
+        // original back would throw its wrapper away. Leave ours in the chain
+        // then, switched off, so it only forwards to the original.
+        for (const { proto, original, wrapper } of this._overviewPatches) {
+            if (proto._isOverviewWindow === wrapper)
+                proto._isOverviewWindow = original;
+        }
+        this._overviewFilter.hidden = null;
+        this._overviewFilter = null;
+        this._overviewPatches = null;
     }
 
     // Moves keyboard focus off a PiP window. Mutter focuses a window on button
@@ -367,13 +468,13 @@ export default class AutoPiPManager extends Extension {
         if (!this._settings.get_boolean('never-in-focus'))
             return;
 
-        const pip = global.display.focus_window;
-        if (!isPiP(pip))
+        if (!this._isTracked(global.display.focus_window))
             return;
 
         const workspace = global.workspace_manager.get_active_workspace();
         const tabList = global.display.get_tab_list(Meta.TabList.NORMAL, workspace);
-        const target = focusFallback(this._lastFocusedWindow, tabList);
+        const target = focusFallback(this._lastFocusedWindow, tabList,
+            window => this._isTracked(window));
         const timestamp = global.display.get_current_time_roundtrip();
 
         if (target)
@@ -382,57 +483,60 @@ export default class AutoPiPManager extends Extension {
             global.display.unset_input_focus(timestamp);
     }
 
-    // Keep the PiP window glued to its corner when the app resizes it
-    // (e.g. a video with another aspect ratio). Interactive resizes are
-    // handled on grab-op-end instead.
+    // Marks the window as PiP and keeps it glued to its corner when the app
+    // resizes it (e.g. a video with another aspect ratio). Interactive
+    // resizes are handled on grab-op-end instead.
     _trackWindow(window) {
         if (this._trackedWindows.has(window))
             return;
 
-        let idleId = 0;
-        const sizeChangedId = window.connect('size-changed', () => {
-            if (this._grabbedWindow === window || idleId)
+        const record = { signalIds: [], idleId: 0, firstFrame: null };
+
+        record.signalIds.push(window.connect('size-changed', () => {
+            if (this._grabbedWindow === window || record.idleId)
                 return;
-            idleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._pendingIdles.delete(idleId);
-                idleId = 0;
-                moveToPiPCorner(window, this._settings);
+            record.idleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._pendingIdles.delete(record.idleId);
+                record.idleId = 0;
+                moveToNearestCorner(window, this._settings);
                 return GLib.SOURCE_REMOVE;
             });
-            this._pendingIdles.add(idleId);
-        });
-        const unmanagedId = window.connect('unmanaged', () => {
-            this._untrackWindow(window);
-            if (idleId) {
-                GLib.source_remove(idleId);
-                this._pendingIdles.delete(idleId);
-            }
-        });
+            this._pendingIdles.add(record.idleId);
+        }));
+        record.signalIds.push(window.connect('unmanaged', () => this._untrackWindow(window)));
 
-        this._trackedWindows.set(window, [sizeChangedId, unmanagedId]);
+        this._trackedWindows.set(window, record);
     }
 
     _untrackWindow(window) {
-        const ids = this._trackedWindows.get(window);
-        if (!ids)
+        const record = this._trackedWindows.get(window);
+        if (!record)
             return;
-        for (const id of ids)
+
+        for (const id of record.signalIds)
             window.disconnect(id);
+        if (record.idleId) {
+            GLib.source_remove(record.idleId);
+            this._pendingIdles.delete(record.idleId);
+        }
+        if (record.firstFrame)
+            record.firstFrame.actor.disconnect(record.firstFrame.id);
+
         this._trackedWindows.delete(window);
+        if (this._grabbedWindow === window)
+            this._grabbedWindow = null;
     }
 
     disable() {
         this._restoreOverview();
 
-        if (this._focusWindowId) {
-            global.display.disconnect(this._focusWindowId);
-            this._focusWindowId = null;
-        }
+        for (const id of this._displaySignals)
+            global.display.disconnect(id);
+        this._displaySignals = null;
 
-        if (this._neverInFocusChangedId) {
-            this._settings.disconnect(this._neverInFocusChangedId);
-            this._neverInFocusChangedId = null;
-        }
+        for (const id of this._settingsSignals)
+            this._settings.disconnect(id);
+        this._settingsSignals = null;
 
         if (this._focusRestoreId) {
             GLib.source_remove(this._focusRestoreId);
@@ -440,37 +544,17 @@ export default class AutoPiPManager extends Extension {
         }
         this._lastFocusedWindow = null;
 
-        if (this._radiusChangedId) {
-            this._settings.disconnect(this._radiusChangedId);
-            this._radiusChangedId = null;
-        }
-
-        for (const window of pipWindows())
+        for (const window of [...this._trackedWindows.keys()]) {
             removeRoundedCorners(window);
-
-        if (this._windowCreatedId) {
-            global.display.disconnect(this._windowCreatedId);
-            this._windowCreatedId = null;
-        }
-
-        if (this._grabOpBeginId) {
-            global.display.disconnect(this._grabOpBeginId);
-            this._grabOpBeginId = null;
-        }
-
-        if (this._grabOpEndId) {
-            global.display.disconnect(this._grabOpEndId);
-            this._grabOpEndId = null;
-        }
-
-        for (const window of [...this._trackedWindows.keys()])
             this._untrackWindow(window);
+        }
         this._trackedWindows = null;
         this._grabbedWindow = null;
 
         for (const id of this._pendingIdles)
             GLib.source_remove(id);
         this._pendingIdles = null;
+        this._placeAllId = 0;
 
         this._settings = null;
     }
